@@ -3,6 +3,7 @@ import argparse
 from time import ctime, sleep
 import random
 import json
+import sys
 
 # ToDO - Sleep temporarily in between to sync with rate-limiting of the API token
 # We can leave that for now as we enjoy 5000 requests per hour
@@ -26,7 +27,7 @@ def get_random_repo_data(seed):
         for repo in repos:
             batch[username].append(repo["name"])
         print("[%s] Done fetching repos of user %s" % (ctime(), username))
-        sleep(2)
+        sleep(1)
     return batch
 
 
@@ -45,6 +46,7 @@ def start_spam(user, token, flag, activity_number, issues_count):
     log_file = open("activity.log", "wb")
 
     # Check if user follows you, then you do random starring as well to do more spam
+    new_flag = False
     if user is not None:
         req = requests.get(base_url + "/users/%s/following/%s" % (user, username))
         new_flag = True
@@ -69,9 +71,9 @@ def start_spam(user, token, flag, activity_number, issues_count):
                     except Exception as err:
                         print(err)
                         print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
-                    sleep(2)
+                    sleep(1)
             user_seed += 30
-    else:
+    elif not flag:
         while activity_number > 0:
             activity_number -= 30
             req = requests.get(base_url + "/users/%s/subscriptions" % user)
@@ -135,18 +137,47 @@ def start_spam(user, token, flag, activity_number, issues_count):
                 		print(err)
                 		print("[%s] Failed creating issue for %s/%s" % (ctime(), name, repo))
                 		break
-                	sleep(2)
+                	sleep(1)
 
     log_file.close()
     print("[%s] Spam Completed" % ctime())
     if mode == 'rollback':
-        print("[%s] Peforming clean-up and starting unstarring process..." % ctime())
         rollback(token)
-        print("[%s] Finished clean-up" % ctime())
 
 
 def rollback(token):
-    pass
+    print("[%s] Peforming clean-up and starting unstarring process..." % ctime())
+    with open("activity.log", "rb") as f:
+        links = f.read()
+    links = links.split("\n")[:-1]
+    err_urls = []
+    for link in links:
+        cnt = 0
+        idx = len(link) - 1
+        while cnt < 2:
+            idx -= 1
+            if link[idx] == '/':
+                cnt += 1
+        name, repo = link[idx + 1:].split("/")
+        try:
+            req = requests.delete(link, headers={"Authorization": "token %s" % token})
+            if req.status_code == 204:
+                print("[%s] Successfully unstarred %s/%s" % (ctime(), name, repo))
+            else:
+                err_urls.append(link)
+                print("[%s] Failed unstarring %s/%s" % (ctime(), name, repo))
+        except Exception as err:
+            err_urls.append(link)
+            print(err)
+            print("[%s] Failed unstarring %s/%s" % (ctime(), name, repo))
+        sleep(0.5)
+    print("[%s] Finished clean-up" % ctime())
+
+    if err_urls:
+        print("%d repos were left starred due to some failure." % len(err_urls))
+        print("Please run the rollback again for the left repos or unstar them manually.")
+        with open("activity.log", "wb") as f:
+            f.write("\n".join(err_urls))
 
 
 if __name__ == '__main__':
@@ -166,12 +197,16 @@ if __name__ == '__main__':
     base_url = "https://api.github.com"
     all_followers = False
 
-    if mode not in ["normal", "rollback"]:
-        raise("Correct Usage: --mode <normal|rollback>")
+    if mode not in ["normal", "rollback", 'only-rollback']:
+        raise("Correct Usage: --mode <normal|rollback|only-rollback>")
 
     req = requests.get("https://api.github.com/rate_limit", headers={"Authorization": "token %s" % token})
     if req.status_code // 100 == 4:
         raise("Something went wrong. Probably with your token.")
+
+    if mode == "only-rollback":
+        rollback(token)
+        sys.exit(0)
 
     if user2spam is None:
         all_followers = True

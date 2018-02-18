@@ -5,6 +5,9 @@ import random
 import json
 
 # ToDO - Sleep temporarily in between to sync with rate-limiting of the API token
+# We can leave that for now as we enjoy 5000 requests per hour
+# Problem is with rate of unauthorized requests - 60 per hour
+# Rather crawl and scrape data instead of API then for unauthentic requests? - The saga continues...
 
 
 def get_random_repo_data(seed):
@@ -41,7 +44,12 @@ def start_spam(user, token, flag, activity_number, issues_count):
     # activities
     log_file = open("activity.log", "wb")
 
-    if flag:
+    # Check if user follows you, then you do random starring as well to do more spam
+    if user is not None:
+        req = requests.get(base_url + "/users/%s/following/%s" % (user, username))
+        new_flag = True
+
+    if flag or new_flag:
         while activity_number > 0:
             activity_number -= 30
             user_batch = get_random_repo_data(user_seed)
@@ -57,7 +65,7 @@ def start_spam(user, token, flag, activity_number, issues_count):
                             print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
                         else:
                             print("[%s] Starred %s/%s successfully" % (ctime(), name, repo))
-                            log_file.write(base_url + "/user/starred/%s/%s" % (name, repo))
+                            log_file.write(base_url + "/user/starred/%s/%s\n" % (name, repo))
                     except Exception as err:
                         print(err)
                         print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
@@ -81,7 +89,7 @@ def start_spam(user, token, flag, activity_number, issues_count):
                             print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
                         else:
                             print("[%s] Starred %s/%s successfully" % (ctime(), name, repo))
-                            log_file.write(base_url + "/user/starred/%s/%s" % (name, repo))
+                            log_file.write(base_url + "/user/starred/%s/%s\n" % (name, repo))
                     except Exception as err:
                         print(err)
                         print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
@@ -117,6 +125,7 @@ def start_spam(user, token, flag, activity_number, issues_count):
                 		    data=json.dumps(issue),
                 		    headers={"Authorization": "token %s" % token}
                 		)
+
                 		if req.status_code != 201:
                 			print("[%s] Failed creating issue for %s/%s" % (ctime(), name, repo))
                 			break
@@ -130,23 +139,42 @@ def start_spam(user, token, flag, activity_number, issues_count):
 
     log_file.close()
     print("[%s] Spam Completed" % ctime())
+    if mode == 'rollback':
+        print("[%s] Peforming clean-up and starting unstarring process..." % ctime())
+        rollback(token)
+        print("[%s] Finished clean-up" % ctime())
+
+
+def rollback(token):
+    pass
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--user', dest='user')
+    parser.add_argument('--target_user', dest='user2spam')
     parser.add_argument('--token', dest='token', required=True)
+    parser.add_argument('--username', dest='username', required=True)
     parser.add_argument('--activities', dest='activities', default=30, type=int)
     parser.add_argument('--issues', dest='issue_per_repo', default=1, type=int)
+    parser.add_argument('--mode', dest='mode', default='normal')
     args = parser.parse_args()
 
-    user2spam, token, activity_number, issues_count = args.user, args.token, args.activities, args.issue_per_repo
-    all_followers = False
-    if user2spam is None:
-        all_followers = True
+    user2spam, token, username = args.user2spam, args.token, args.username
+    activity_number, issues_count, mode = args.activities, args.issue_per_repo, args.mode
 
     user_seed = 1
     base_url = "https://api.github.com"
+    all_followers = False
+
+    if mode not in ["normal", "rollback"]:
+        raise("Correct Usage: --mode <normal|rollback>")
+
+    req = requests.get("https://api.github.com/rate_limit", headers={"Authorization": "token %s" % token})
+    if req.status_code // 100 == 4:
+        raise("Something went wrong. Probably with your token.")
+
+    if user2spam is None:
+        all_followers = True
 
     if issues_count > 30:
         print("[%s] Max issues per repo can be 30, setting to 30..." % ctime())

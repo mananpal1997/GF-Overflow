@@ -1,5 +1,5 @@
 # Github-Feed-Overflow
-POC (maybe? ʘ‿ʘ) to fill up any user's github feed with spam activities.
+POC (maybe? ʘ‿ʘ) to fill up any user's github feed with spam activities. You can also hide your actual activities by generating noise over your actusal acitivities using this script.
 
 ## Story Time
 Recently, a friend of mine ran a bot to star and fork some repos. In no time, my github acitivity feed was full of her activites. I scrolled to bottom of my feed, and I could see nothing else but activities of hers. ᕙ(⇀‸↼‶)ᕗ
@@ -21,3 +21,7 @@ $ python git_spam.py --help
                      [--issues ISSUE_PER_REPO] [--mode MODE]
 $ python git_spam.py --username <username> --token <token> --target_user <user_to_spam>
 ```
+
+> After your mass acitvities, snapshots have been generated for target user(s). Now say, you think "Damn, I had starred inportant things, but now it's full of random repos as well". Well, there's a rollback option, that unstars all the repos that were starred during the spam.
+
+![](http://i3.kym-cdn.com/photos/images/newsfeed/001/176/251/4d7.png)

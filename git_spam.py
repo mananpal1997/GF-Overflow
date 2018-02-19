@@ -49,7 +49,8 @@ def start_spam(user, token, flag, activity_number, issues_count):
     new_flag = False
     if user is not None:
         req = requests.get(base_url + "/users/%s/following/%s" % (user, username))
-        new_flag = True
+        if req.status_code // 100 != 4:
+            new_flag = True
 
     if flag or new_flag:
         while activity_number > 0:
@@ -73,7 +74,7 @@ def start_spam(user, token, flag, activity_number, issues_count):
                         print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
                     sleep(1)
             user_seed += 30
-    elif not flag:
+    if not flag:
         while activity_number > 0:
             activity_number -= 30
             req = requests.get(base_url + "/users/%s/subscriptions" % user)
@@ -211,8 +212,9 @@ if __name__ == '__main__':
     if user2spam is None:
         all_followers = True
 
-    if issues_count > 30:
-        print("[%s] Max issues per repo can be 30, setting to 30..." % ctime())
+    # if issues_count > 30:
+        # print("[%s] Max issues per repo can be 30, setting to 30..." % ctime())
+        # issues_count = 30
 
     print("[%s] Starting Spam..." % ctime())
     start_spam(user2spam, token, all_followers, activity_number, issues_count)

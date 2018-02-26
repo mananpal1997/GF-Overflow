@@ -17,18 +17,15 @@ def get_random_repo_data(seed):
     req = requests.get(base_url + "/users?since=%d" % seed)
     users = req.json()
 
-    batch = {}
     for user in users:
         username = user["login"]
-        batch[username] = []
         print("[%s] Fetching repos of user %s ..." % (ctime(), username))
         req = requests.get(user["repos_url"])
         repos = req.json()
         for repo in repos:
-            batch[username].append(repo["name"])
-        print("[%s] Done fetching repos of user %s" % (ctime(), username))
+            yield username, repo["name"]  # a little better performance
+        print("[%s] Done fetching and starring repos of user %s" % (ctime(), username))
         sleep(1)
-    return batch
 
 
 # POC of spamming any user present on github
@@ -55,24 +52,22 @@ def start_spam(user, token, flag, activity_number, issues_count):
     if flag or new_flag:
         while activity_number > 0:
             activity_number -= 30
-            user_batch = get_random_repo_data(user_seed)
-            for name, repos in user_batch.items():
-                for repo in repos:
-                    try:
-                        req = requests.put(
-                            base_url + "/user/starred/%s/%s" % (name, repo),
-                            headers={"Authorization": "token %s" % token}
-                        )
+            for name, repo in get_random_repo_data(user_seed):
+                try:
+                    req = requests.put(
+                        base_url + "/user/starred/%s/%s" % (name, repo),
+                        headers={"Authorization": "token %s" % token}
+                    )
 
-                        if req.status_code != 204:
-                            print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
-                        else:
-                            print("[%s] Starred %s/%s successfully" % (ctime(), name, repo))
-                            log_file.write(base_url + "/user/starred/%s/%s\n" % (name, repo))
-                    except Exception as err:
-                        print(err)
+                    if req.status_code != 204:
                         print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
-                    sleep(1)
+                    else:
+                        print("[%s] Starred %s/%s successfully" % (ctime(), name, repo))
+                        log_file.write(base_url + "/user/starred/%s/%s\n" % (name, repo))
+                except Exception as err:
+                    print(err)
+                    print("[%s] Failed starring %s/%s" % (ctime(), name, repo))
+                sleep(1)
             user_seed += 30
     if not flag:
         while activity_number > 0:
